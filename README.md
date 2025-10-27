@@ -1,22 +1,24 @@
-# Interview Queue Automation (Google Apps Script)
 
-This Google Apps Script automates notifying interview candidates from a Google Form → Sheet workflow.  
+---
 
-## ✨ Features
-- Automatically assigns queue numbers on new responses  
-- Notifies next candidate by email (Gmail)  
-- Tracks "Waiting", "In-progress", "Done", and "Skipped" statuses  
-- Allows manual control from the Google Sheets menu  
+## 🪪 Copyright & License
 
-## 🧩 Setup
-1. Create a Google Form → link to a Sheet  
-2. Open Extensions → Apps Script  
-3. Paste `Code.gs` and `appsscript.json`  
-4. Update `SHEET_NAME` and Teams meeting link  
-5. Save, authorize, and use menu options:
-   - “Notify next candidate”
-   - “Mark current as Done”
-   - “Rebuild queue numbers”
+© 2025 **Dev V**  
+All Rights Reserved.  
 
-## 🪪 License
-Licensed under the [MIT License](LICENSE). You can freely use, modify, and distribute this code.
+This project is an original innovation by **Dev V**, designed to automate interview queue management using the Google ecosystem (Sheets + Apps Script).  
+Reproduction, redistribution, or commercial use without proper attribution is prohibited.
+
+Distributed under the **MIT License** for educational and non-commercial purposes.
+
+---
+
+## 🌐 Connect with Me
+
+💼 [LinkedIn](#)  
+🎥 [YouTube Channel](#) – *Tech, Motivation & Tutorials*  
+📧 [Email](mailto:yourname@example.com)
+
+---
+
+> 🚀 *"Innovation is not about complexity — it’s about solving real problems with simplicity."*

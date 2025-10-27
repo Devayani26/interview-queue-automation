@@ -1,5 +1,5 @@
 // ======= CONFIG =======
-const SHEET_NAME = "Form responses 1"; // <-- match your actual tab name
+const SHEET_NAME = "Form responses 1"; 
 const EXPECTED = {
   status: ["status"],
   queue: ["queue number", "queue", "queue no", "queue no."],
@@ -10,7 +10,7 @@ const EXPECTED = {
 };
 // ======================
 
-// Utility: find a header index (1-based)
+// Utility functions
 function findColIndexByAlternatives(headers, alternatives) {
   const map = {};
   for (let i = 0; i < headers.length; i++) {
@@ -40,15 +40,15 @@ function onOpen() {
     .createMenu("Interview Queue")
     .addItem("Notify next candidate", "notifyNextCandidate")
     .addItem("Mark current as Done", "markCurrentDone")
-    .addItem("Skip current candidate", "skipCurrentCandidate")
+    .addItem("Mark current as Skipped", "markCurrentSkipped")
     .addItem("Rebuild queue numbers", "rebuildQueueNumbers")
     .addSeparator()
-    .addItem("Show detected headers & mapping", "showDetectedHeadersAndMapping")
+    .addItem("Show detected headers", "showDetectedHeadersAndMapping")
     .addItem("Force Email Authorization", "forceAuth")
     .addToUi();
 }
 
-// === Helper to get sheet safely ===
+// === Sheet & Header Helpers ===
 function getSheetAndHeaders() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_NAME);
@@ -59,17 +59,7 @@ function getSheetAndHeaders() {
     );
     return null;
   }
-  const lastCol = sheet.getLastColumn();
-  if (!lastCol || lastCol < 1) {
-    SpreadsheetApp.getUi().alert(
-      "❌ Sheet '" + SHEET_NAME + "' appears empty. Ensure the form has created header row."
-    );
-    return null;
-  }
-  const headers = sheet
-    .getRange(1, 1, 1, lastCol)
-    .getValues()[0]
-    .map(h => h.toString());
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
   return { sheet, headers };
 }
 
@@ -79,46 +69,10 @@ function showDetectedHeadersAndMapping() {
   if (!info) return;
   const { headers } = info;
   const mapping = detectColumns(headers);
-  let msg = "Detected headers:\n\n" + headers.map((h, i) => (i + 1) + ". " + h).join("\n");
+  let msg = "Detected headers:\n\n" + headers.map((h, i) => `${i + 1}. ${h}`).join("\n");
   msg += "\n\nColumn mapping:\n";
-  msg += "Timestamp -> " + (mapping.timestampCol || "NOT FOUND") + "\n";
-  msg += "Name -> " + (mapping.nameCol || "NOT FOUND") + "\n";
-  msg += "Email -> " + (mapping.emailCol || "NOT FOUND") + "\n";
-  msg += "Queue -> " + (mapping.queueCol || "NOT FOUND") + "\n";
-  msg += "Status -> " + (mapping.statusCol || "NOT FOUND") + "\n";
-  msg += "Notified At -> " + (mapping.notifiedAtCol || "NOT FOUND") + "\n";
+  for (let key in mapping) msg += `${key}: ${mapping[key] || "NOT FOUND"}\n`;
   SpreadsheetApp.getUi().alert(msg);
-}
-
-// === Trigger on form submit ===
-function onFormSubmit(e) {
-  const info = getSheetAndHeaders();
-  if (!info) return;
-  const { sheet, headers } = info;
-  const cols = detectColumns(headers);
-
-  const missing = [];
-  if (!cols.statusCol) missing.push("Status");
-  if (!cols.queueCol) missing.push("Queue (Queue Number)");
-  if (!cols.emailCol) missing.push("Email");
-  if (!cols.nameCol) missing.push("Full Name / Name");
-
-  if (missing.length > 0) {
-    SpreadsheetApp.getUi().alert(
-      "❌ Missing expected columns:\n" +
-        missing.join(", ") +
-        "\n\nPlease ensure these columns exist in header row."
-    );
-    return;
-  }
-
-  const row = e.range.getRow();
-  if (row < 2) return;
-
-  const currentStatus = sheet.getRange(row, cols.statusCol).getValue();
-  if (!currentStatus) sheet.getRange(row, cols.statusCol).setValue("Waiting");
-
-  rebuildQueueNumbers();
 }
 
 // === Rebuild queue ===
@@ -128,36 +82,13 @@ function rebuildQueueNumbers() {
   const { sheet, headers } = info;
   const cols = detectColumns(headers);
 
-  if (!cols.timestampCol || !cols.statusCol || !cols.queueCol) {
-    SpreadsheetApp.getUi().alert(
-      "❌ Missing required columns for rebuilding queue. Need: Timestamp, Status, Queue Number."
-    );
-    return;
-  }
-
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return;
-
-  const data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
-  const arr = data.map((r, i) => ({
-    rowIndex: i + 2,
-    timestamp: r[cols.timestampCol - 1],
-    status: r[cols.statusCol - 1]
-  }));
-
-  arr.sort((a, b) => {
-    if (!a.timestamp) return 1;
-    if (!b.timestamp) return -1;
-    return new Date(a.timestamp) - new Date(b.timestamp);
-  });
-
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
   let q = 1;
-  arr.forEach(item => {
-    const status = String(item.status).toLowerCase();
-    if (status === "done" || status === "skipped") {
-      sheet.getRange(item.rowIndex, cols.queueCol).setValue(""); // leave blank for skipped/done
-    } else {
-      sheet.getRange(item.rowIndex, cols.queueCol).setValue(q++);
+  data.forEach((r, i) => {
+    const status = (r[cols.statusCol - 1] || "").toLowerCase();
+    if (status === "waiting") sheet.getRange(i + 2, cols.queueCol).setValue(q++);
+    else if (status === "in-progress" || status === "done" || status === "skipped") {
+      sheet.getRange(i + 2, cols.queueCol).setValue("");
     }
   });
 }
@@ -169,34 +100,17 @@ function notifyNextCandidate() {
   const { sheet, headers } = info;
   const cols = detectColumns(headers);
 
-  const missing = [];
-  if (!cols.statusCol) missing.push("Status");
-  if (!cols.queueCol) missing.push("Queue");
-  if (!cols.emailCol) missing.push("Email");
-  if (!cols.nameCol) missing.push("Name");
-  if (!cols.notifiedAtCol) missing.push("Notified At");
-  if (missing.length > 0) {
-    SpreadsheetApp.getUi().alert("❌ Missing expected columns: " + missing.join(", "));
-    return;
-  }
-
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) {
-    SpreadsheetApp.getUi().alert("No candidates found.");
-    return;
-  }
-
-  const data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
   const arr = data.map((r, i) => ({
     rowIndex: i + 2,
     queue: Number(r[cols.queueCol - 1]) || Infinity,
-    status: String(r[cols.statusCol - 1] || "").toLowerCase(),
+    status: r[cols.statusCol - 1],
     email: r[cols.emailCol - 1],
     name: r[cols.nameCol - 1]
   }));
 
   arr.sort((a, b) => a.queue - b.queue);
-  const next = arr.find(item => item.status === "waiting"); // ignore skipped/done
+  const next = arr.find(item => String(item.status).toLowerCase() === "waiting");
 
   if (!next) {
     SpreadsheetApp.getUi().alert("No Waiting candidate found.");
@@ -204,11 +118,10 @@ function notifyNextCandidate() {
   }
 
   const subject = "Your interview: please join now";
-  const meetingLink = "https://teams.live.com/meet/example"; // <-- replace with your real Teams link
+  const meetingLink = "https://teams.live.com/meet/example";
   const body = `Hi ${next.name},
 
-It's your turn for the interview now. Please join the meeting immediately 
-using this link:
+It's your turn for the interview now. Please join the meeting immediately:
 ${meetingLink}
 
 You were #${next.queue} in the queue. If you cannot join, reply to this email 
@@ -227,7 +140,7 @@ Interview Team`;
   }
 }
 
-// === Mark current as done ===
+// === Mark current as Done ===
 function markCurrentDone() {
   const info = getSheetAndHeaders();
   if (!info) return;
@@ -236,7 +149,8 @@ function markCurrentDone() {
 
   const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
   for (let i = 0; i < data.length; i++) {
-    if (String(data[i][cols.statusCol - 1]).toLowerCase() === "in-progress") {
+    const status = String(data[i][cols.statusCol - 1]).toLowerCase();
+    if (status === "in-progress") {
       sheet.getRange(i + 2, cols.statusCol).setValue("Done");
       SpreadsheetApp.getUi().alert(`✅ Marked Done for row ${i + 2}`);
       rebuildQueueNumbers();
@@ -246,8 +160,8 @@ function markCurrentDone() {
   SpreadsheetApp.getUi().alert("No In-progress candidate found.");
 }
 
-// === Skip current candidate ===
-function skipCurrentCandidate() {
+// === Mark current as Skipped ===
+function markCurrentSkipped() {
   const info = getSheetAndHeaders();
   if (!info) return;
   const { sheet, headers } = info;
@@ -255,20 +169,20 @@ function skipCurrentCandidate() {
 
   const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
   for (let i = 0; i < data.length; i++) {
-    if (String(data[i][cols.statusCol - 1]).toLowerCase() === "in-progress") {
+    const status = String(data[i][cols.statusCol - 1]).toLowerCase();
+    if (status === "in-progress") {
       sheet.getRange(i + 2, cols.statusCol).setValue("Skipped");
-      SpreadsheetApp.getUi().alert(`⚠️ Skipped candidate at row ${i + 2}`);
+      SpreadsheetApp.getUi().alert(`⚠️ Marked Skipped for row ${i + 2}`);
       rebuildQueueNumbers();
       return;
     }
   }
-  SpreadsheetApp.getUi().alert("No In-progress candidate found to skip.");
+  SpreadsheetApp.getUi().alert("No In-progress candidate found.");
 }
 
-// === Test authorization for MailApp ===
+// === Email authorization ===
 function forceAuth() {
   const userEmail = Session.getActiveUser().getEmail();
-  Logger.log("Active user email: " + userEmail);
   MailApp.sendEmail(userEmail, "Test Authorization", "If you see this email, permissions work!");
   SpreadsheetApp.getUi().alert(
     "Authorization test triggered. Check your inbox for 'Test Authorization'."

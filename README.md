@@ -119,9 +119,9 @@ Distributed under the **MIT License** for educational and non-commercial purpose
 
 ## 🌐 Connect with Me
 
-💼 [LinkedIn](#)  
-🎥 [YouTube Channel](#) – *Tech, Motivation & Tutorials*  
-📧 [Email](mailto:yourname@example.com)
+💼 [LinkedIn](https://www.linkedin.com/in/devayaniv26)  
+🎥 [YouTube Channel](https://youtube.com/@techy_amy01?si=jHDLxy8PW4wEl6oh) – *Tech, Motivation & Tutorials*  
+📧 [Email](mailto:devayanivantepaka26@gmail.com)
 
 ---
 
